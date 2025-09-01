@@ -1,14 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run compile:contracts && npm run build",
-  "devCommand": "npm run dev",
   "installCommand": "npm install --force",
-  "outputDirectory": ".next",
-  "functions": {
-    "app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "env": {
     "NEXT_PUBLIC_CHAIN_ID": "84532",
     "NEXT_PUBLIC_CONTRACT_ADDRESS": "0xAEa1F2693C0cB46AA0675b8c63cA8DD0AA4006f0",
@@ -16,11 +8,10 @@
     "NEXT_PUBLIC_USE_BLOCKCHAIN": "true",
     "NEXT_PUBLIC_APP_NAME": "University Voting DApp"
   },
-  "build": {
-    "env": {
-      "ENABLE_FILE_SYSTEM_API": "1"
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
     }
   },
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
   "regions": ["iad1"]
 }

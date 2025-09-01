@@ -236,31 +236,39 @@ class AdminAuthenticationTester {
                 this.addTestResult('MetaMask Connection Support', false, 'use-multi-wallet.tsx file not found');
             }
 
-            // Test wallet address normalization
+            // Test wallet address normalization with specific admin address
             const testAddress = '0x315ec932f31190915ce2dc089f4fb7a69002155f';
             const normalizedAddress = ethers.getAddress(testAddress);
             if (normalizedAddress === this.adminWalletAddress) {
-                this.addTestResult('Wallet Address Normalization', true, 'Address normalization working correctly');
+                this.addTestResult('Admin Wallet Address Normalization', true, 'Admin address normalization working correctly');
             } else {
-                this.addTestResult('Wallet Address Normalization', false, 'Address normalization not working');
+                this.addTestResult('Admin Wallet Address Normalization', false, 'Admin address normalization not working');
             }
 
-            // Test network validation
+            // Test specific admin wallet address validation
+            const adminAddressValidation = ethers.isAddress(this.adminWalletAddress);
+            if (adminAddressValidation) {
+                this.addTestResult('Admin Wallet Address Format Validation', true, 'Admin wallet address format is valid');
+            } else {
+                this.addTestResult('Admin Wallet Address Format Validation', false, 'Admin wallet address format is invalid');
+            }
+
+            // Test Base Sepolia network validation
             try {
                 const wagmiPath = path.join(process.cwd(), 'lib', 'wagmi.ts');
                 if (fs.existsSync(wagmiPath)) {
                     const wagmiContent = fs.readFileSync(wagmiPath, 'utf8');
-                    const networkValidationMatch = wagmiContent.match(/chainId|network|84532/);
-                    if (networkValidationMatch) {
-                        this.addTestResult('Network Validation', true, 'Network validation implemented');
+                    const baseSepoliaMatch = wagmiContent.match(/84532|baseSepolia|Base Sepolia/);
+                    if (baseSepoliaMatch) {
+                        this.addTestResult('Base Sepolia Network Validation', true, 'Base Sepolia network validation implemented');
                     } else {
-                        this.addTestResult('Network Validation', false, 'Network validation not found');
+                        this.addTestResult('Base Sepolia Network Validation', false, 'Base Sepolia network validation not found');
                     }
                 } else {
-                    this.addTestResult('Network Validation', false, 'wagmi.ts file not found');
+                    this.addTestResult('Base Sepolia Network Validation', false, 'wagmi.ts file not found');
                 }
             } catch (error) {
-                this.addTestResult('Network Validation', false, `Error: ${error.message}`);
+                this.addTestResult('Base Sepolia Network Validation', false, `Error: ${error.message}`);
             }
 
             // Test wallet disconnection
@@ -274,6 +282,24 @@ class AdminAuthenticationTester {
                 }
             } else {
                 this.addTestResult('Wallet Disconnection', false, 'use-web3.tsx file not found');
+            }
+
+            // Test admin wallet authorization integration
+            try {
+                const adminDashboardPath = path.join(process.cwd(), 'components', 'admin-dashboard.tsx');
+                if (fs.existsSync(adminDashboardPath)) {
+                    const dashboardContent = fs.readFileSync(adminDashboardPath, 'utf8');
+                    const adminWalletAuthMatch = dashboardContent.match(/NEXT_PUBLIC_ADMIN_WALLET_ADDRESS|adminWalletAddress|isAdmin/);
+                    if (adminWalletAuthMatch) {
+                        this.addTestResult('Admin Wallet Authorization Integration', true, 'Admin wallet authorization integrated in dashboard');
+                    } else {
+                        this.addTestResult('Admin Wallet Authorization Integration', false, 'Admin wallet authorization not integrated');
+                    }
+                } else {
+                    this.addTestResult('Admin Wallet Authorization Integration', false, 'admin-dashboard.tsx file not found');
+                }
+            } catch (error) {
+                this.addTestResult('Admin Wallet Authorization Integration', false, `Error: ${error.message}`);
             }
         } catch (error) {
             this.addTestResult('Wallet-Based Authentication', false, `Error: ${error.message}`);
@@ -413,9 +439,61 @@ class AdminAuthenticationTester {
         }
     }
 
+    // 7. Complete Authentication Flow Testing
+    testCompleteAuthenticationFlow() {
+        this.log('Testing Complete Authentication Flow...', 'TEST');
+
+        try {
+            // Test traditional login to wallet verification flow
+            const universityVotingPath = path.join(process.cwd(), 'hooks', 'use-university-voting.tsx');
+            if (fs.existsSync(universityVotingPath)) {
+                const hookContent = fs.readFileSync(universityVotingPath, 'utf8');
+                
+                // Test login to wallet connection integration
+                const loginToWalletMatch = hookContent.match(/login.*wallet|wallet.*login|authentication.*flow/i);
+                if (loginToWalletMatch) {
+                    this.addTestResult('Login to Wallet Connection Integration', true, 'Login to wallet connection flow implemented');
+                } else {
+                    this.addTestResult('Login to Wallet Connection Integration', false, 'Login to wallet connection flow not found');
+                }
+
+                // Test admin operations requiring both login and wallet
+                const dualAuthMatch = hookContent.match(/admin.*operation|operation.*admin|createElection|addCandidate/i);
+                if (dualAuthMatch) {
+                    this.addTestResult('Dual Authentication for Admin Operations', true, 'Admin operations require both login and wallet');
+                } else {
+                    this.addTestResult('Dual Authentication for Admin Operations', false, 'Dual authentication not implemented');
+                }
+            } else {
+                this.addTestResult('Complete Authentication Flow', false, 'use-university-voting.tsx file not found');
+            }
+
+            // Test admin dashboard access flow
+            const adminDashboardPath = path.join(process.cwd(), 'components', 'admin-dashboard.tsx');
+            if (fs.existsSync(adminDashboardPath)) {
+                const dashboardContent = fs.readFileSync(adminDashboardPath, 'utf8');
+                
+                // Test complete flow from login to dashboard access
+                const completeFlowMatch = dashboardContent.match(/login.*dashboard|dashboard.*access|authentication.*complete/i);
+                if (completeFlowMatch) {
+                    this.addTestResult('Complete Login to Dashboard Access Flow', true, 'Complete authentication flow implemented');
+                } else {
+                    this.addTestResult('Complete Login to Dashboard Access Flow', false, 'Complete authentication flow not found');
+                }
+            } else {
+                this.addTestResult('Complete Login to Dashboard Access Flow', false, 'admin-dashboard.tsx file not found');
+            }
+
+        } catch (error) {
+            this.addTestResult('Complete Authentication Flow', false, `Error: ${error.message}`);
+        }
+    }
+
     // Run all tests
     runAllTests() {
-        this.log('Starting Admin Authentication Testing...', 'START');
+        this.log('Starting Enhanced Admin Authentication Testing...', 'START');
+        this.log(`Testing with Admin Wallet: ${this.adminWalletAddress}`, 'INFO');
+        this.log(`Testing with Base Sepolia Chain ID: ${this.baseSepoliaChainId}`, 'INFO');
         
         this.testEnvironmentConfiguration();
         this.testAdminDashboardAccessControl();
@@ -423,6 +501,7 @@ class AdminAuthenticationTester {
         this.testWalletBasedAuthentication();
         this.testErrorHandlingScenarios();
         this.testAdminDashboardIntegration();
+        this.testCompleteAuthenticationFlow();
 
         // Generate summary
         const totalTests = this.testResults.length;

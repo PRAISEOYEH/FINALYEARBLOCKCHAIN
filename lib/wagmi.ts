@@ -26,7 +26,7 @@ import { QueryClient } from "@tanstack/react-query";
 
 /* Environment-driven settings */
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://sepolia.base.org";
-const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "";
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 const appName = process.env.NEXT_PUBLIC_APP_NAME || "University Voting DApp";
 
 /* Build a chain object that ensures the RPC points to the configured URL */

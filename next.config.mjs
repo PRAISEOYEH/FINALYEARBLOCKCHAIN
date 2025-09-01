@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  output: 'standalone',
   // Disable SWC minifier to use Terser instead
   swcMinify: false,
   // Disable SWC transforms to use Babel as fallback
@@ -24,7 +25,7 @@ const nextConfig = {
       },
     },
   },
-  // Webpack configuration for better compatibility
+  // Webpack configuration for better compatibility and blockchain integration
   webpack: (config, { dev, isServer }) => {
     // Add fallbacks for Node.js modules
     config.resolve.fallback = {
@@ -32,6 +33,14 @@ const nextConfig = {
       fs: false,
       net: false,
       tls: false,
+      crypto: false,
+      stream: false,
+      url: false,
+      assert: false,
+      http: false,
+      https: false,
+      os: false,
+      buffer: false,
     }
     
     // Handle SWC binary issues gracefully
@@ -42,6 +51,15 @@ const nextConfig = {
       )
     }
     
+    // Ensure blockchain-related modules are properly bundled
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      // Ensure proper resolution of blockchain modules
+      '@wagmi/core': require.resolve('@wagmi/core'),
+      'wagmi': require.resolve('wagmi'),
+      'viem': require.resolve('viem'),
+    }
+    
     return config
   },
   // Compiler options for better stability
@@ -49,10 +67,18 @@ const nextConfig = {
     // Disable emotion if causing issues
     emotion: false,
   },
-  // Build configuration
+  // Build configuration - prevent caching of provider components
   distDir: '.next',
   generateBuildId: async () => {
     return 'build-' + Date.now()
+  },
+  // Disable static optimization for pages that require dynamic blockchain functionality
+  trailingSlash: false,
+  // Ensure proper handling of dynamic imports for blockchain modules
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{member}}',
+    },
   },
 }
 

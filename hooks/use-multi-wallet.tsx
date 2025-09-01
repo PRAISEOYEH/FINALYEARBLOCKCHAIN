@@ -11,11 +11,11 @@ import {
   type Connector
 } from 'wagmi';
 import type { Address } from 'viem';
-import { MetaMaskConnector, WalletConnectConnector, CoinbaseWalletConnector } from '@wagmi/connectors';
+// Note: Individual connector imports not needed as we use the connector instances from wagmi config
 import { baseSepoliaWithRpc } from '@/lib/wagmi';
 
 // Wallet type definitions
-export type WalletType = 'metamask' | 'walletconnect' | 'coinbase';
+export type WalletType = 'metamask' | 'coinbase';
 export type WalletKey = WalletType;
 
 // Wallet metadata interface
@@ -98,13 +98,6 @@ const WALLET_METADATA: WalletInfo[] = [
     icon: '🦊'
   },
   {
-    key: 'walletconnect',
-    name: 'WalletConnect',
-    downloadUrl: 'https://walletconnect.com/',
-    isInstalled: true, // WalletConnect is always available
-    icon: '🔗'
-  },
-  {
     key: 'coinbase',
     name: 'Coinbase Wallet',
     downloadUrl: 'https://www.coinbase.com/wallet',
@@ -122,8 +115,11 @@ export function useMultiWallet(): UseMultiWallet {
   // Always read balance from Base Sepolia since this is the only supported network for voting
   // Users must be on Base Sepolia to interact with the voting contracts
   const { data: balance } = useBalance({
-    address,
-    chainId: isConnected ? baseSepoliaWithRpc.id : undefined,
+    address: address || undefined,
+    chainId: isConnected && address ? baseSepoliaWithRpc.id : undefined,
+    query: {
+      enabled: Boolean(address && isConnected),
+    },
   });
   const chainId = useChainId();
 
@@ -176,8 +172,6 @@ export function useMultiWallet(): UseMultiWallet {
     switch (activeConnector.id) {
       case 'metaMask':
         return 'metamask';
-      case 'walletConnect':
-        return 'walletconnect';
       case 'coinbaseWallet':
         return 'coinbase';
       default:
@@ -196,8 +190,6 @@ export function useMultiWallet(): UseMultiWallet {
         switch (type) {
           case 'metamask':
             return c.id === 'metaMask';
-          case 'walletconnect':
-            return c.id === 'walletConnect';
           case 'coinbase':
             return c.id === 'coinbaseWallet';
           default:
@@ -218,8 +210,12 @@ export function useMultiWallet(): UseMultiWallet {
       setShowWalletModal(false);
       
       // Store wallet type in localStorage for persistence
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('walletType', type);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('walletType', type);
+        }
+      } catch (error) {
+        console.warn('Failed to store wallet type:', error);
       }
     } catch (error) {
       console.error('Wallet connection error:', error);
@@ -234,8 +230,12 @@ export function useMultiWallet(): UseMultiWallet {
     setWalletType(null);
     setConnectionError(null);
     setShouldPromptNetworkSwitch(false);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('walletType');
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem('walletType');
+      }
+    } catch (error) {
+      console.warn('Failed to remove wallet type from storage:', error);
     }
   }, [disconnect]);
 
@@ -263,11 +263,15 @@ export function useMultiWallet(): UseMultiWallet {
   // Load persisted wallet type on mount
   useEffect(() => {
     if (isConnected && !walletType) {
-      if (typeof window !== 'undefined') {
-        const persistedWalletType = localStorage.getItem('walletType') as WalletType;
-        if (persistedWalletType && WALLET_METADATA.some(w => w.key === persistedWalletType)) {
-          setWalletType(persistedWalletType);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const persistedWalletType = localStorage.getItem('walletType') as WalletType;
+          if (persistedWalletType && WALLET_METADATA.some(w => w.key === persistedWalletType)) {
+            setWalletType(persistedWalletType);
+          }
         }
+      } catch (error) {
+        console.warn('Failed to load persisted wallet type:', error);
       }
     }
   }, [isConnected, walletType]);
