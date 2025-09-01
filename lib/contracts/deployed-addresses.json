@@ -1,0 +1,10 @@
+{
+  "localhost": {
+    "UniversityVoting": "0x0000000000000000000000000000000000000000",
+    "deployedAt": ""
+  },
+  "baseSepolia": {
+    "UniversityVoting": "0xAEa1F2693C0cB46AA0675b8c63cA8DD0AA4006f0",
+    "deployedAt": "2025-08-29T15:37:07.837Z"
+  }
+}

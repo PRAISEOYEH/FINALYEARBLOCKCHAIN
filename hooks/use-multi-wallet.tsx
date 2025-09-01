@@ -1,549 +1,419 @@
-"use client"
+'use client';
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { ethers } from "ethers"
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  useAccount, 
+  useConnect, 
+  useDisconnect, 
+  useSwitchChain, 
+  useBalance,
+  useChainId,
+  type Connector
+} from 'wagmi';
+import type { Address } from 'viem';
+import { MetaMaskConnector, WalletConnectConnector, CoinbaseWalletConnector } from '@wagmi/connectors';
+import { baseSepoliaWithRpc } from '@/lib/wagmi';
 
-// Wallet Provider Types
-interface WalletProvider {
-  isMetaMask?: boolean
-  isCoinbaseWallet?: boolean
-  isPhantom?: boolean
-  request: (args: { method: string; params?: any[] }) => Promise<any>
-  on: (event: string, callback: (...args: any[]) => void) => void
-  removeListener: (event: string, callback: (...args: any[]) => void) => void
+// Wallet type definitions
+export type WalletType = 'metamask' | 'walletconnect' | 'coinbase';
+export type WalletKey = WalletType;
+
+// Wallet metadata interface
+export interface WalletInfo {
+  key: WalletType;
+  name: string;
+  downloadUrl: string;
+  isInstalled: boolean;
+  icon: string;
 }
 
-declare global {
-  interface Window {
-    ethereum?: WalletProvider & {
-      providers?: WalletProvider[]
-    }
-    phantom?: {
-      ethereum?: WalletProvider
-    }
-  }
+// Hook return type interface
+export interface UseMultiWallet {
+  // Connection state
+  isConnected: boolean;
+  isConnecting: boolean;
+  isSwitchingNetwork: boolean;
+  
+  // Account information
+  account: Address | undefined;
+  formattedAddress: string;
+  balance: {
+    formatted: string;
+    symbol: string;
+    decimals: number;
+    value: bigint;
+    nativeBalanceFormatted: string;
+  };
+  
+  // Network information
+  network: {
+    chainId: number;
+    isSupported: boolean;
+    needsSwitch: boolean;
+    supportedChain: typeof baseSepoliaWithRpc;
+  };
+  networkName: string;
+  supportedChain: typeof baseSepoliaWithRpc;
+  explorerBaseUrl: string | undefined;
+  
+  // Wallet information
+  walletType: WalletType | null;
+  connectedWallet: WalletType | null;
+  
+  // Connection methods
+  connectWallet: (type: WalletType) => Promise<void>;
+  disconnectWallet: () => void;
+  
+  // Network switching
+  switchToSupportedNetwork: () => Promise<void>;
+  
+  // Modal state
+  showWalletModal: boolean;
+  openWalletModal: () => void;
+  closeWalletModal: () => void;
+  
+  // Available wallets
+  availableWallets: WalletInfo[];
+  detectedWallets: WalletInfo[];
+  
+  // Error handling
+  error: string | null;
+  connectionError: string | null;
+  
+  // Network validation
+  needsNetworkSwitch: boolean;
+  isOnSupportedNetwork: boolean;
+  
+  // Auto-prompt for network switching
+  shouldPromptNetworkSwitch: boolean;
 }
 
-export type WalletType = "MetaMask" | "Coinbase" | "Phantom" | "WalletConnect" | "Other"
-
-interface WalletInfo {
-  name: WalletType
-  icon: string
-  provider: WalletProvider
-  isInstalled: boolean
-  downloadUrl: string
-}
-
-interface Candidate {
-  id: string
-  name: string
-  party: string
-  votes: number
-  walletAddress: string
-  verified: boolean
-}
-
-interface Election {
-  id: string
-  title: string
-  description: string
-  startTime: string
-  endTime: string
-  status: "upcoming" | "active" | "completed"
-  candidates: Candidate[]
-  totalVotes: number
-  contractAddress: string
-  createdBy: string
-  voterRequirements: {
-    minAge: number
-    citizenship: boolean
-    kycVerified: boolean
-  }
-  encryptionKey: string
-}
-
-interface NetworkInfo {
-  chainId: number
-  name: string
-  isSupported: boolean
-}
-
-interface MultiWalletContextType {
-  isConnected: boolean
-  account: string
-  balance: string
-  network: string
-  walletType: string
-  isConnecting: boolean
-  error: string | null
-  needsNetworkSwitch: boolean
-  connectWallet: (type: "metamask" | "walletconnect" | "coinbase") => Promise<void>
-  disconnect: () => void
-  switchNetwork: (networkId: string) => Promise<void>
-  switchToSupportedNetwork: () => Promise<void>
-  elections: Election[]
-  userRole: "voter" | "admin" | "auditor"
-  isRegistered: boolean
-}
-
-const MultiWalletContext = createContext<MultiWalletContextType | undefined>(undefined)
-
-// Supported Networks Configuration
-const SUPPORTED_NETWORKS: Record<number, { name: string; rpcUrl?: string }> = {
-  1: { name: "Ethereum Mainnet" },
-  11155111: { name: "Sepolia Testnet", rpcUrl: "https://sepolia.infura.io/v3/" },
-  137: { name: "Polygon Mainnet" },
-  80001: { name: "Polygon Mumbai", rpcUrl: "https://rpc-mumbai.maticvigil.com/" },
-  5: { name: "Goerli Testnet" },
-  1337: { name: "Localhost", rpcUrl: "http://localhost:8545" },
-}
-
-// Default to Sepolia for development
-const DEFAULT_CHAIN_ID = 11155111
-
-// Mock elections data
-const mockElections: Election[] = [
+// Wallet metadata configuration
+const WALLET_METADATA: WalletInfo[] = [
   {
-    id: "0x1a2b3c4d5e6f",
-    title: "Student Union Presidential Election 2024",
-    description: "Annual presidential election for the university student union",
-    startTime: "2024-01-01T00:00:00",
-    endTime: "2024-12-31T23:59:59",
-    status: "active",
-    totalVotes: 1247,
-    contractAddress: "0x742d35Cc6634C0532925a3b8D4C0C8b3C2e1e1e1",
-    createdBy: "0xAdmin123456789",
-    voterRequirements: {
-      minAge: 18,
-      citizenship: true,
-      kycVerified: true,
-    },
-    encryptionKey: "0xEncryptionKey123",
-    candidates: [
-      {
-        id: "0x1",
-        name: "Sarah Johnson",
-        party: "Progressive Student Alliance",
-        votes: 542,
-        walletAddress: "0xSarah123456789",
-        verified: true,
-      },
-      {
-        id: "0x2",
-        name: "Michael Chen",
-        party: "Student Unity Coalition",
-        votes: 489,
-        walletAddress: "0xMichael123456789",
-        verified: true,
-      },
-      {
-        id: "0x3",
-        name: "Emma Rodriguez",
-        party: "Independent Students",
-        votes: 216,
-        walletAddress: "0xEmma123456789",
-        verified: true,
-      },
-    ],
+    key: 'metamask',
+    name: 'MetaMask',
+    downloadUrl: 'https://metamask.io/download/',
+    isInstalled: false, // Will be computed dynamically
+    icon: '🦊'
   },
-]
+  {
+    key: 'walletconnect',
+    name: 'WalletConnect',
+    downloadUrl: 'https://walletconnect.com/',
+    isInstalled: true, // WalletConnect is always available
+    icon: '🔗'
+  },
+  {
+    key: 'coinbase',
+    name: 'Coinbase Wallet',
+    downloadUrl: 'https://www.coinbase.com/wallet',
+    isInstalled: false, // Will be computed dynamically
+    icon: '🪙'
+  }
+];
 
-export function MultiWalletProvider({ children }: { children: ReactNode }) {
-  const [isConnected, setIsConnected] = useState(false)
-  const [account, setAccount] = useState("")
-  const [balance, setBalance] = useState("0")
-  const [network, setNetwork] = useState("")
-  const [walletType, setWalletType] = useState("")
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [needsNetworkSwitch, setNeedsNetworkSwitch] = useState(false)
-  const [elections, setElections] = useState<Election[]>(mockElections)
-  const [userRole, setUserRole] = useState<"voter" | "admin" | "auditor">("voter")
-  const [isRegistered, setIsRegistered] = useState(false)
-  const [votedElections, setVotedElections] = useState<Set<string>>(new Set())
-  const [currentWalletProvider, setCurrentWalletProvider] = useState<WalletProvider | null>(null)
-  const [availableWallets, setAvailableWallets] = useState<WalletInfo[]>([])
-  const [detectedWallets, setDetectedWallets] = useState<WalletInfo[]>([])
-  const [showWalletModal, setShowWalletModal] = useState(false)
-  const [connectionError, setConnectionError] = useState<string | null>(null)
-  const [provider, setProvider] = useState<any | null>(null)
-  const [signer, setSigner] = useState<any | null>(null)
-  const [connectedWallet, setConnectedWallet] = useState<WalletType | null>(null)
-  const [gasPrice, setGasPrice] = useState<string | null>(null)
-  const [blockNumber, setBlockNumber] = useState<number | null>(null)
+export function useMultiWallet(): UseMultiWallet {
+  // Wagmi hooks
+  const { address, isConnected, isConnecting, connector: activeConnector } = useAccount();
+  const { connect, connectors, error: connectError } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchChain, error: switchError } = useSwitchChain();
+  // Always read balance from Base Sepolia since this is the only supported network for voting
+  // Users must be on Base Sepolia to interact with the voting contracts
+  const { data: balance } = useBalance({
+    address,
+    chainId: isConnected ? baseSepoliaWithRpc.id : undefined,
+  });
+  const chainId = useChainId();
 
-  const connectWallet = async (type: "metamask" | "walletconnect" | "coinbase") => {
-    setIsConnecting(true)
-    setError(null)
+  // Local state
+  const [walletType, setWalletType] = useState<WalletType | null>(null);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
+  const [shouldPromptNetworkSwitch, setShouldPromptNetworkSwitch] = useState(false);
 
-    try {
-      // Simulate wallet connection
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+  // Check if connected to supported network
+  const isOnSupportedNetwork = chainId === baseSepoliaWithRpc.id;
+  const needsNetworkSwitch = isConnected && !isOnSupportedNetwork;
 
-      // Mock wallet data
-      const mockAccount = "0x742d35Cc6634C0532925a3b8D4C0C8b3C2e1e1e1"
-      const mockBalance = "1.2345"
-      const mockNetwork = "Ethereum Mainnet"
+  // Enhanced wallet detection with multi-provider support
+  const [walletAvailability, setWalletAvailability] = useState(() => {
+    if (typeof window === 'undefined') return { hasMetaMask: false, hasCoinbase: false };
+    
+    const providers = window.ethereum?.providers || [window.ethereum];
+    const hasMetaMask = providers.some(provider => provider?.isMetaMask);
+    const hasCoinbase = providers.some(provider => provider?.isCoinbaseWallet);
+    
+    return { hasMetaMask, hasCoinbase };
+  });
 
-      setAccount(mockAccount)
-      setBalance(mockBalance)
-      setNetwork(mockNetwork)
-      setWalletType(type)
-      setIsConnected(true)
-      setNeedsNetworkSwitch(mockNetwork !== "Sepolia Testnet")
-    } catch (err: any) {
-      setError(err.message || "Failed to connect wallet")
-    } finally {
-      setIsConnecting(false)
+  const availableWallets = useMemo(() => {
+    if (typeof window === 'undefined') return WALLET_METADATA;
+    
+    return WALLET_METADATA.map(wallet => ({
+      ...wallet,
+      isInstalled: wallet.key === 'metamask' 
+        ? walletAvailability.hasMetaMask
+        : wallet.key === 'coinbase'
+        ? walletAvailability.hasCoinbase
+        : wallet.isInstalled
+    }));
+  }, [walletAvailability]);
+
+  // Detect installed wallets
+  const detectedWallets = useMemo(() => 
+    availableWallets.filter(wallet => wallet.isInstalled), 
+    [availableWallets]
+  );
+
+  // Derive wallet type from active connector when connected
+  const derivedWalletType = useMemo(() => {
+    if (!isConnected || !activeConnector) return null;
+    
+    // Use connector.id for robust identification instead of instanceof
+    switch (activeConnector.id) {
+      case 'metaMask':
+        return 'metamask';
+      case 'walletConnect':
+        return 'walletconnect';
+      case 'coinbaseWallet':
+        return 'coinbase';
+      default:
+        return null;
     }
-  }
+  }, [isConnected, activeConnector]);
 
-  const disconnect = () => {
-    setIsConnected(false)
-    setAccount("")
-    setBalance("0")
-    setNetwork("")
-    setWalletType("")
-    setError(null)
-    setNeedsNetworkSwitch(false)
-    setCurrentWalletProvider(null)
-    localStorage.removeItem("connectedWallet")
-    console.log("Wallet disconnected")
-  }
-
-  const switchNetwork = async (networkId: string) => {
+  // Connect to specific wallet
+  const connectWallet = useCallback(async (type: WalletType) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setNetwork("Sepolia Testnet")
-      setNeedsNetworkSwitch(false)
-    } catch (err: any) {
-      setError(err.message || "Failed to switch network")
-    }
-  }
+      setConnectionError(null);
+      setWalletType(type);
+      
+      const connector = connectors.find(c => {
+        // Use connector.id for robust identification instead of instanceof
+        switch (type) {
+          case 'metamask':
+            return c.id === 'metaMask';
+          case 'walletconnect':
+            return c.id === 'walletConnect';
+          case 'coinbase':
+            return c.id === 'coinbaseWallet';
+          default:
+            return false;
+        }
+      });
 
-  const switchToSupportedNetwork = async () => {
-    try {
-      await switchNetwork(DEFAULT_CHAIN_ID)
-      setNeedsNetworkSwitch(false)
-      setConnectionError(null)
-    } catch (error: any) {
-      console.error("Failed to switch network:", error)
-      setConnectionError(error.message || "Failed to switch network")
-    }
-  }
-
-  const getMetaMaskProvider = (): WalletProvider | null => {
-    if (typeof window === "undefined") return null
-
-    const providers = window.ethereum?.providers || []
-    const metamaskProvider = providers.find((p) => p.isMetaMask) || window.ethereum
-
-    return metamaskProvider?.isMetaMask ? metamaskProvider : null
-  }
-
-  const getCoinbaseProvider = (): WalletProvider | null => {
-    if (typeof window === "undefined") return null
-
-    const providers = window.ethereum?.providers || []
-    const coinbaseProvider = providers.find((p) => p.isCoinbaseWallet) || window.ethereum
-
-    return coinbaseProvider?.isCoinbaseWallet ? coinbaseProvider : null
-  }
-
-  const getPhantomProvider = (): WalletProvider | null => {
-    if (typeof window === "undefined") return null
-
-    return window.phantom?.ethereum || null
-  }
-
-  const openWalletModal = () => {
-    setShowWalletModal(true)
-    setConnectionError(null)
-  }
-
-  const closeWalletModal = () => {
-    setShowWalletModal(false)
-    setConnectionError(null)
-  }
-
-  const setupWalletEventListeners = (walletProvider: WalletProvider) => {
-    const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
-        disconnect()
-      } else if (accounts[0] !== account) {
-        setAccount(accounts[0])
-        refreshBalance()
+      if (!connector) {
+        throw new Error(`${type} wallet not available`);
       }
-    }
 
-    const handleChainChanged = (chainId: string) => {
-      const newChainId = Number.parseInt(chainId, 16)
-      const networkInfo: NetworkInfo = {
-        chainId: newChainId,
-        name: SUPPORTED_NETWORKS[newChainId]?.name || `Chain ${newChainId}`,
-        isSupported: !!SUPPORTED_NETWORKS[newChainId],
+      // Only enforce ready check for MetaMask
+      if (type === 'metamask' && !connector.ready) {
+        throw new Error(`${type} wallet not ready`);
       }
-      setNetwork(networkInfo)
 
-      if (!networkInfo.isSupported) {
-        setNeedsNetworkSwitch(true)
-        setConnectionError(`Please switch to ${SUPPORTED_NETWORKS[DEFAULT_CHAIN_ID]?.name || "a supported network"}`)
-      } else {
-        setNeedsNetworkSwitch(false)
-        setConnectionError(null)
+      await connect({ connector });
+      setShowWalletModal(false);
+      
+      // Store wallet type in localStorage for persistence
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('walletType', type);
       }
-    }
-
-    const handleDisconnect = () => {
-      disconnect()
-    }
-
-    // Remove existing listeners first
-    if (currentWalletProvider) {
-      currentWalletProvider.removeListener("accountsChanged", handleAccountsChanged)
-      currentWalletProvider.removeListener("chainChanged", handleChainChanged)
-      currentWalletProvider.removeListener("disconnect", handleDisconnect)
-    }
-
-    // Add new event listeners
-    walletProvider.on("accountsChanged", handleAccountsChanged)
-    walletProvider.on("chainChanged", handleChainChanged)
-    walletProvider.on("disconnect", handleDisconnect)
-  }
-
-  const refreshBalance = async () => {
-    if (!provider || !account) return
-
-    try {
-      const balance = await provider.getBalance(account)
-      setBalance(ethers.utils.formatEther(balance))
     } catch (error) {
-      console.error("Failed to fetch balance:", error)
+      console.error('Wallet connection error:', error);
+      setConnectionError(error instanceof Error ? error.message : 'Failed to connect wallet');
+      setWalletType(null);
     }
-  }
+  }, [connect, connectors, isConnected, isOnSupportedNetwork]);
 
-  const castVote = async (electionId: string, candidateId: string): Promise<string> => {
-    if (!signer || !provider) {
-      throw new Error("Wallet not connected")
+  // Disconnect wallet
+  const disconnectWallet = useCallback(() => {
+    disconnect();
+    setWalletType(null);
+    setConnectionError(null);
+    setShouldPromptNetworkSwitch(false);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('walletType');
     }
+  }, [disconnect]);
 
-    if (needsNetworkSwitch) {
-      throw new Error("Please switch to a supported network first")
+  // Switch to supported network
+  const switchToSupportedNetwork = useCallback(async () => {
+    // Early return if already on supported network or not connected
+    if (!isConnected || isOnSupportedNetwork) {
+      return;
     }
 
     try {
-      const tx = await signer.sendTransaction({
-        to: "0x742d35Cc6634C0532925a3b8D4C0C8b3C2e1e1e1",
-        value: ethers.utils.parseEther("0"),
-        data: "0x",
-        gasLimit: 150000,
-      })
-
-      const receipt = await tx.wait()
-
-      // Update local state
-      setElections((prev) =>
-        prev.map((election) => {
-          if (election.id === electionId) {
-            return {
-              ...election,
-              candidates: election.candidates.map((candidate) =>
-                candidate.id === candidateId ? { ...candidate, votes: candidate.votes + 1 } : candidate,
-              ),
-              totalVotes: election.totalVotes + 1,
-            }
-          }
-          return election
-        }),
-      )
-
-      setVotedElections((prev) => new Set([...prev, electionId]))
-
-      return receipt.transactionHash
-    } catch (error: any) {
-      console.error("Vote casting failed:", error)
-      throw new Error(error.message || "Failed to cast vote")
+      setIsSwitchingNetwork(true);
+      setConnectionError(null);
+      setShouldPromptNetworkSwitch(false);
+      
+      await switchChain({ chainId: baseSepoliaWithRpc.id });
+    } catch (error) {
+      console.error('Network switch error:', error);
+      setConnectionError(error instanceof Error ? error.message : 'Failed to switch network');
+    } finally {
+      setIsSwitchingNetwork(false);
     }
-  }
+  }, [switchChain, isConnected, isOnSupportedNetwork]);
 
-  const hasVoted = (electionId: string) => votedElections.has(electionId)
-
-  const registerVoter = async (data: any) => {
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsRegistered(true)
-  }
-
-  const createElection = async (data: any): Promise<string> => {
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-    return "0x" + Math.random().toString(16).substr(2, 40)
-  }
-
+  // Load persisted wallet type on mount
   useEffect(() => {
-    const detectWallets = () => {
-      const wallets: WalletInfo[] = [
-        {
-          name: "MetaMask",
-          icon: "🦊",
-          provider: getMetaMaskProvider(),
-          isInstalled: !!getMetaMaskProvider(),
-          downloadUrl: "https://metamask.io/download/",
-        },
-        {
-          name: "Coinbase",
-          icon: "🔵",
-          provider: getCoinbaseProvider(),
-          isInstalled: !!getCoinbaseProvider(),
-          downloadUrl: "https://www.coinbase.com/wallet",
-        },
-        {
-          name: "Phantom",
-          icon: "👻",
-          provider: getPhantomProvider(),
-          isInstalled: !!getPhantomProvider(),
-          downloadUrl: "https://phantom.app/",
-        },
-        {
-          name: "WalletConnect",
-          icon: "🔗",
-          provider: null as any,
-          isInstalled: true,
-          downloadUrl: "https://walletconnect.com/",
-        },
-      ]
-
-      setAvailableWallets(wallets)
-      setDetectedWallets(wallets.filter((wallet) => wallet.isInstalled))
-    }
-
-    detectWallets()
-  }, [])
-
-  useEffect(() => {
-    if (!provider || needsNetworkSwitch || !isConnected) return
-
-    const updateNetworkInfo = async () => {
-      try {
-        // First verify the network is stable
-        const currentNetwork = await provider.getNetwork()
-
-        // Check if network matches our expected network
-        if (!SUPPORTED_NETWORKS[currentNetwork.chainId]) {
-          console.warn(`Unsupported network detected: ${currentNetwork.chainId}`)
-          setNeedsNetworkSwitch(true)
-          return
-        }
-
-        // Only fetch gas price and block number if network is stable
-        const [currentGasPrice, currentBlockNumber] = await Promise.all([
-          provider.getGasPrice().catch(() => null),
-          provider.getBlockNumber().catch(() => null),
-        ])
-
-        if (currentGasPrice) {
-          setGasPrice(ethers.utils.formatUnits(currentGasPrice, "gwei"))
-        }
-
-        if (currentBlockNumber) {
-          setBlockNumber(currentBlockNumber)
-        }
-      } catch (error: any) {
-        console.error("Failed to fetch network info:", error)
-
-        // Handle specific network errors
-        if (error.code === "NETWORK_ERROR" || error.code === "CALL_EXCEPTION") {
-          console.warn("Network error detected, attempting to refresh connection...")
-
-          // Try to refresh the network info
-          try {
-            const newNetwork = await provider.getNetwork()
-            const networkInfo: NetworkInfo = {
-              chainId: newNetwork.chainId,
-              name: SUPPORTED_NETWORKS[newNetwork.chainId]?.name || `Chain ${newNetwork.chainId}`,
-              isSupported: !!SUPPORTED_NETWORKS[newNetwork.chainId],
-            }
-            setNetwork(networkInfo)
-
-            if (!networkInfo.isSupported) {
-              setNeedsNetworkSwitch(true)
-              setConnectionError(
-                `Please switch to ${SUPPORTED_NETWORKS[DEFAULT_CHAIN_ID]?.name || "a supported network"}`,
-              )
-            }
-          } catch (refreshError) {
-            console.error("Failed to refresh network info:", refreshError)
-            // Don't disconnect, just stop trying to fetch network info
-          }
+    if (isConnected && !walletType) {
+      if (typeof window !== 'undefined') {
+        const persistedWalletType = localStorage.getItem('walletType') as WalletType;
+        if (persistedWalletType && WALLET_METADATA.some(w => w.key === persistedWalletType)) {
+          setWalletType(persistedWalletType);
         }
       }
     }
+  }, [isConnected, walletType]);
 
-    // Initial update with a small delay to let the network stabilize
-    const initialTimeout = setTimeout(updateNetworkInfo, 1000)
+  // Use derived wallet type when no localStorage info is present
+  useEffect(() => {
+    if (isConnected && !walletType && derivedWalletType) {
+      setWalletType(derivedWalletType);
+    }
+  }, [isConnected, walletType, derivedWalletType]);
 
-    // Regular updates every 30 seconds (increased from 15 to reduce network calls)
-    const interval = setInterval(updateNetworkInfo, 30000)
+  // Clear connection error when wallet type changes
+  useEffect(() => {
+    if (walletType) {
+      setConnectionError(null);
+    }
+  }, [walletType]);
+
+  // Auto-prompt for network switch when connected but on wrong network
+  useEffect(() => {
+    if (isConnected && !isOnSupportedNetwork) {
+      setShouldPromptNetworkSwitch(true);
+    } else {
+      setShouldPromptNetworkSwitch(false);
+    }
+  }, [isConnected, isOnSupportedNetwork]);
+
+  // Reactive wallet availability detection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateWalletAvailability = () => {
+      const providers = window.ethereum?.providers || [window.ethereum];
+      const hasMetaMask = providers.some(provider => provider?.isMetaMask);
+      const hasCoinbase = providers.some(provider => provider?.isCoinbaseWallet);
+      
+      setWalletAvailability({ hasMetaMask, hasCoinbase });
+    };
+
+    // Update on visibility change (user returns to tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        updateWalletAvailability();
+      }
+    };
+
+    // Update on interval while modal is open
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    if (showWalletModal) {
+      intervalId = setInterval(updateWalletAvailability, 5000); // Check every 5 seconds
+    }
+
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Initial check
+    updateWalletAvailability();
 
     return () => {
-      clearTimeout(initialTimeout)
-      clearInterval(interval)
-    }
-  }, [provider, needsNetworkSwitch, isConnected])
-
-  useEffect(() => {
-    const autoConnect = async () => {
-      const savedWallet = localStorage.getItem("connectedWallet") as WalletType
-      if (savedWallet && detectedWallets.find((w) => w.name === savedWallet)) {
-        try {
-          await connectWallet(savedWallet)
-        } catch (error) {
-          console.error("Auto-connect failed:", error)
-          localStorage.removeItem("connectedWallet")
-        }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (intervalId !== undefined) {
+        clearInterval(intervalId);
       }
-    }
+    };
+  }, [showWalletModal]);
 
-    if (detectedWallets.length > 0) {
-      autoConnect()
-    }
-  }, [detectedWallets])
+  // Format account address
+  const formattedAddress = address 
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : '';
 
-  useEffect(() => {
-    if (isConnected && connectedWallet) {
-      localStorage.setItem("connectedWallet", connectedWallet)
-    } else {
-      localStorage.removeItem("connectedWallet")
-    }
-  }, [isConnected, connectedWallet])
+  // Structured balance object with BigInt value
+  const balanceInfo = {
+    formatted: balance?.formatted || '0',
+    symbol: balance?.symbol || 'ETH',
+    decimals: balance?.decimals || 18,
+    value: balance?.value ?? 0n,
+    nativeBalanceFormatted: balance ? `${parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}` : '0.0000 ETH'
+  };
 
-  return (
-    <MultiWalletContext.Provider
-      value={{
-        isConnected,
-        account,
-        balance,
-        network,
-        walletType,
-        isConnecting,
-        error,
-        needsNetworkSwitch,
-        connectWallet,
-        disconnect,
-        switchNetwork,
-        switchToSupportedNetwork,
-        elections,
-        userRole,
-        isRegistered,
-      }}
-    >
-      {children}
-    </MultiWalletContext.Provider>
-  )
-}
+  // Modal controls
+  const openWalletModal = useCallback(() => {
+    setShowWalletModal(true);
+    setConnectionError(null);
+  }, []);
 
-export function useMultiWallet() {
-  const context = useContext(MultiWalletContext)
-  if (context === undefined) {
-    throw new Error("useMultiWallet must be used within a MultiWalletProvider")
-  }
-  return context
+  const closeWalletModal = useCallback(() => {
+    setShowWalletModal(false);
+    setConnectionError(null);
+  }, []);
+
+  // Simplified error composition
+  const errObj = connectError || switchError;
+  const error = connectionError ?? errObj?.message ?? null;
+
+  return {
+    // Connection state
+    isConnected,
+    isConnecting,
+    isSwitchingNetwork,
+    
+    // Account information
+    account: address,
+    formattedAddress,
+    balance: balanceInfo,
+    
+    // Network information
+    network: {
+      chainId,
+      isSupported: isOnSupportedNetwork,
+      needsSwitch: needsNetworkSwitch,
+      supportedChain: baseSepoliaWithRpc,
+    },
+    networkName: baseSepoliaWithRpc.name,
+    supportedChain: baseSepoliaWithRpc,
+    explorerBaseUrl: baseSepoliaWithRpc.blockExplorers?.default.url,
+    
+    // Wallet information
+    walletType,
+    connectedWallet: walletType,
+    
+    // Connection methods
+    connectWallet,
+    disconnectWallet,
+    
+    // Network switching
+    switchToSupportedNetwork,
+    
+    // Modal state
+    showWalletModal,
+    openWalletModal,
+    closeWalletModal,
+    
+    // Available wallets
+    availableWallets,
+    detectedWallets,
+    
+    // Error handling
+    error,
+    connectionError,
+    
+    // Network validation
+    needsNetworkSwitch,
+    isOnSupportedNetwork,
+    
+    // Auto-prompt for network switching
+    shouldPromptNetworkSwitch,
+  };
 }

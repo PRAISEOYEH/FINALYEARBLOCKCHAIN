@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { TrendingUp, Activity, Zap, Users } from "lucide-react"
@@ -97,7 +97,7 @@ export default function RealTimeDashboard() {
         <CardContent>
           <div className="text-2xl font-bold">Block #{blockNumber?.toLocaleString()}</div>
           <p className="text-xs text-muted-foreground">
-            Gas: {gasPrice ? Number.parseFloat(ethers.utils.formatUnits(gasPrice, "gwei")).toFixed(1) : 0} gwei
+            Gas: {gasPrice ? Number.parseFloat(ethers.formatUnits(gasPrice, "gwei")).toFixed(1) : 0} gwei
           </p>
         </CardContent>
       </Card>

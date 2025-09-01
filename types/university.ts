@@ -30,21 +30,27 @@ export interface UniversityPosition {
 
 export interface Candidate {
   id: string
+  name: string
   studentId: string
   student: Student
   position: UniversityPosition
   platform: string
+  party?: string
   experience: string
   endorsements: string[]
   campaignPromises: string[]
   votes: number
   verified: boolean
   campaignBudget: number
+  walletAddress?: string
   socialMedia: {
     twitter?: string
     instagram?: string
     facebook?: string
   }
+  // Blockchain integration properties
+  onchainId?: string | bigint
+  positionOnchainId?: string | bigint
 }
 
 export interface UniversityElection {
@@ -75,6 +81,14 @@ export interface UniversityElection {
     votingMethod: "single" | "ranked" | "approval"
     requiresDeposit: boolean
     depositAmount: number
+  }
+  // Blockchain integration properties
+  onchainId?: string | bigint
+  positionIndex?: number
+  voterRequirements?: {
+    kycVerified?: boolean
+    minGPA?: number
+    eligibleFaculties?: string[]
   }
 }
 

@@ -30,7 +30,6 @@ import {
   Eye,
 } from "lucide-react"
 import { useUniversityVoting } from "@/hooks/use-university-voting"
-import { useMultiWallet } from "@/hooks/use-multi-wallet"
 
 interface CampaignEvent {
   id: string
@@ -54,8 +53,8 @@ interface CampaignPost {
 }
 
 export default function CandidateDashboard() {
-  const { user, logout } = useUniversityVoting()
-  const { account, connectedWallet, disconnectWallet } = useMultiWallet()
+  const { user, logout, walletState, walletActions } = useUniversityVoting()
+  const { account, isConnected, isOnSupportedNetwork } = walletState
   const [activeTab, setActiveTab] = useState("overview")
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileData, setProfileData] = useState({
@@ -141,7 +140,7 @@ export default function CandidateDashboard() {
 
   const handleLogout = () => {
     logout()
-    disconnectWallet()
+    walletActions.disconnectWallet()
   }
 
   const handleSaveProfile = () => {
@@ -185,6 +184,11 @@ export default function CandidateDashboard() {
               {account && (
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                   {truncateAddress(account)}
+                </Badge>
+              )}
+              {isConnected && (
+                <Badge variant="outline" className={isOnSupportedNetwork ? "bg-green-50 text-green-700 border-green-200" : "bg-yellow-50 text-yellow-700 border-yellow-200"}>
+                  {isOnSupportedNetwork ? "Base Sepolia" : "Wrong Network"}
                 </Badge>
               )}
               <Button variant="ghost" size="sm">
@@ -656,7 +660,14 @@ export default function CandidateDashboard() {
                     <div className="space-y-2">
                       <Badge className="bg-green-100 text-green-800">Verified Candidate</Badge>
                       <Badge className="bg-blue-100 text-blue-800">Campaign Active</Badge>
-                      <Badge className="bg-purple-100 text-purple-800">Blockchain Connected</Badge>
+                      <Badge className={isConnected ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-800"}>
+                        {isConnected ? "Blockchain Connected" : "Wallet Not Connected"}
+                      </Badge>
+                      {isConnected && (
+                        <Badge className={isOnSupportedNetwork ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+                          {isOnSupportedNetwork ? "Base Sepolia Network" : "Wrong Network"}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>

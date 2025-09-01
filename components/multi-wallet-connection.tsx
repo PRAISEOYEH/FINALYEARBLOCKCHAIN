@@ -13,15 +13,15 @@ export default function MultiWalletConnection() {
     isConnected,
     account,
     balance,
-    network,
+    networkName,
+    explorerBaseUrl,
     walletType,
     connectWallet,
-    disconnect,
-    switchNetwork,
+    disconnectWallet,
+    switchToSupportedNetwork,
     isConnecting,
     error,
     needsNetworkSwitch,
-    switchToSupportedNetwork,
   } = useMultiWallet()
 
   const [copiedAddress, setCopiedAddress] = useState(false)
@@ -36,10 +36,6 @@ export default function MultiWalletConnection() {
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
-  }
-
-  const formatBalance = (balance: string) => {
-    return Number.parseFloat(balance).toFixed(4)
   }
 
   if (!isConnected) {
@@ -129,7 +125,7 @@ export default function MultiWalletConnection() {
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-800">
               <div className="flex items-center justify-between">
-                <span>Please switch to Sepolia Testnet</span>
+                <span>Please switch to Base Sepolia</span>
                 <Button size="sm" onClick={switchToSupportedNetwork} className="ml-2">
                   Switch Network
                 </Button>
@@ -142,9 +138,15 @@ export default function MultiWalletConnection() {
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div>
               <p className="text-sm font-medium text-gray-900">Address</p>
-              <p className="text-sm text-gray-600">{formatAddress(account)}</p>
+              <p className="text-sm text-gray-600">{account ? formatAddress(account) : ""}</p>
             </div>
-            <Button size="sm" variant="ghost" onClick={copyAddress} className="text-gray-600 hover:text-gray-900">
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={copyAddress} 
+              disabled={!account}
+              className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+            >
               {copiedAddress ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
@@ -152,7 +154,7 @@ export default function MultiWalletConnection() {
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div>
               <p className="text-sm font-medium text-gray-900">Balance</p>
-              <p className="text-sm text-gray-600">{formatBalance(balance)} ETH</p>
+              <p className="text-sm text-gray-600">{balance.nativeBalanceFormatted}</p>
             </div>
             <Zap className="h-4 w-4 text-yellow-500" />
           </div>
@@ -160,7 +162,7 @@ export default function MultiWalletConnection() {
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div>
               <p className="text-sm font-medium text-gray-900">Network</p>
-              <p className="text-sm text-gray-600">{network}</p>
+              <p className="text-sm text-gray-600">{networkName}</p>
             </div>
             <div className={`w-3 h-3 rounded-full ${needsNetworkSwitch ? "bg-yellow-500" : "bg-green-500"}`} />
           </div>
@@ -170,13 +172,14 @@ export default function MultiWalletConnection() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(`https://sepolia.etherscan.io/address/${account}`, "_blank")}
-            className="flex-1"
+            onClick={() => window.open(`${explorerBaseUrl}/address/${account}`, "_blank")}
+            disabled={!account}
+            className="flex-1 disabled:opacity-50"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             View on Explorer
           </Button>
-          <Button variant="outline" size="sm" onClick={disconnect} className="flex-1 bg-transparent">
+          <Button variant="outline" size="sm" onClick={disconnectWallet} className="flex-1 bg-transparent">
             Disconnect
           </Button>
         </div>

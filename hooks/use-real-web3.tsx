@@ -17,7 +17,7 @@ const VOTING_CONTRACT_ABI = [
 
 interface RealWeb3ContextType {
   // Wallet Connection
-  provider: ethers.providers.Web3Provider | null
+  provider: ethers.BrowserProvider | null
   signer: ethers.Signer | null
   account: string | null
   chainId: number | null
@@ -27,7 +27,7 @@ interface RealWeb3ContextType {
   elections: Election[]
   liveVoteCounts: Record<string, Record<string, number>>
   networkStats: NetworkStats
-  gasPrice: ethers.BigNumber | null
+  gasPrice: bigint | null
   blockNumber: number | null
 
   // Functions
@@ -41,7 +41,7 @@ const RealWeb3Context = createContext<RealWeb3ContextType | undefined>(undefined
 
 export function RealWeb3Provider({ children }: { children: ReactNode }) {
   // Wallet State
-  const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null)
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
   const [signer, setSigner] = useState<ethers.Signer | null>(null)
   const [account, setAccount] = useState<string | null>(null)
   const [chainId, setChainId] = useState<number | null>(null)
@@ -56,7 +56,7 @@ export function RealWeb3Provider({ children }: { children: ReactNode }) {
     networkHealth: "unknown",
     tps: 0,
   })
-  const [gasPrice, setGasPrice] = useState<ethers.BigNumber | null>(null)
+  const [gasPrice, setGasPrice] = useState<bigint | null>(null)
   const [blockNumber, setBlockNumber] = useState<number | null>(null)
 
   // WebSocket for real-time updates
@@ -106,7 +106,7 @@ export function RealWeb3Provider({ children }: { children: ReactNode }) {
       })
 
       // Create provider and signer
-      const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+      const web3Provider = new ethers.BrowserProvider(window.ethereum)
       const web3Signer = web3Provider.getSigner()
       const network = await web3Provider.getNetwork()
 

@@ -53,7 +53,7 @@ interface AuthenticWeb3ContextType {
   // Wallet State
   isConnected: boolean
   account: string | null
-  provider: ethers.providers.Web3Provider | null
+  provider: ethers.BrowserProvider | null
   signer: ethers.Signer | null
   network: NetworkInfo | null
   balance: string | null
@@ -144,7 +144,7 @@ export function AuthenticWeb3Provider({ children }: { children: ReactNode }) {
   // Wallet State
   const [isConnected, setIsConnected] = useState(false)
   const [account, setAccount] = useState<string | null>(null)
-  const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null)
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
   const [signer, setSigner] = useState<ethers.Signer | null>(null)
   const [network, setNetwork] = useState<NetworkInfo | null>(null)
   const [balance, setBalance] = useState<string | null>(null)
@@ -184,7 +184,7 @@ export function AuthenticWeb3Provider({ children }: { children: ReactNode }) {
       }
 
       // Create provider and get network info
-      const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+      const web3Provider = new ethers.BrowserProvider(window.ethereum)
       const network = await web3Provider.getNetwork()
 
       // Validate chain ID
@@ -304,7 +304,7 @@ export function AuthenticWeb3Provider({ children }: { children: ReactNode }) {
 
     try {
       const balance = await provider.getBalance(account)
-      setBalance(ethers.utils.formatEther(balance))
+      setBalance(ethers.formatEther(balance))
     } catch (error) {
       console.error("Failed to fetch balance:", error)
     }
@@ -321,7 +321,7 @@ export function AuthenticWeb3Provider({ children }: { children: ReactNode }) {
       // For now, we'll simulate a transaction
       const tx = await signer.sendTransaction({
         to: "0x742d35Cc6634C0532925a3b8D4C0C8b3C2e1e1e1", // Contract address
-        value: ethers.utils.parseEther("0"), // No ETH transfer for voting
+        value: ethers.parseEther("0"), // No ETH transfer for voting
         data: "0x", // Contract call data would go here
         gasLimit: 150000,
       })
@@ -426,7 +426,7 @@ export function AuthenticWeb3Provider({ children }: { children: ReactNode }) {
           provider.getBlockNumber(),
         ])
 
-        setGasPrice(ethers.utils.formatUnits(currentGasPrice, "gwei"))
+        setGasPrice(ethers.formatUnits(currentGasPrice, "gwei"))
         setBlockNumber(currentBlockNumber)
       } catch (error) {
         console.error("Failed to fetch network info:", error)

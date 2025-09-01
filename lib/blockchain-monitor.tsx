@@ -6,11 +6,11 @@ import type { NetworkStats } from "./network-stats" // Assuming this is where Ne
 
 // Real Blockchain Monitoring
 export class BlockchainMonitor {
-  private provider: ethers.providers.WebSocketProvider
+  private provider: ethers.WebSocketProvider
   private contracts: Map<string, ethers.Contract>
 
   constructor(websocketUrl: string) {
-    this.provider = new ethers.providers.WebSocketProvider(websocketUrl)
+    this.provider = new ethers.WebSocketProvider(websocketUrl)
     this.contracts = new Map()
   }
 
@@ -56,7 +56,7 @@ export class BlockchainMonitor {
     ])
 
     return {
-      gasPrice: Number.parseFloat(ethers.utils.formatUnits(gasPrice, "gwei")),
+      gasPrice: Number.parseFloat(ethers.formatUnits(gasPrice, "gwei")),
       blockNumber,
       blockTime: block.timestamp,
       networkHealth: "healthy", // Determine based on block times

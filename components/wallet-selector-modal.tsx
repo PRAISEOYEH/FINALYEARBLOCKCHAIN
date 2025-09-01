@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ExternalLink, Download, CheckCircle, AlertTriangle, Loader2 } from "lucide-react"
-import { useMultiWallet, type WalletType } from "@/hooks/use-multi-wallet"
+import { useMultiWallet, type WalletKey } from "@/hooks/use-multi-wallet"
 
 export default function WalletSelectorModal() {
   const {
@@ -16,15 +16,15 @@ export default function WalletSelectorModal() {
     detectedWallets,
     connectWallet,
     isConnecting,
-    connectionError,
+    error,
   } = useMultiWallet()
 
-  const [selectedWallet, setSelectedWallet] = useState<WalletType | null>(null)
+  const [selectedWallet, setSelectedWallet] = useState<WalletKey | null>(null)
 
-  const handleWalletSelect = async (walletType: WalletType) => {
-    setSelectedWallet(walletType)
+  const handleWalletSelect = async (walletKey: WalletKey) => {
+    setSelectedWallet(walletKey)
     try {
-      await connectWallet(walletType)
+      await connectWallet(walletKey)
     } catch (error) {
       console.error("Wallet connection failed:", error)
     } finally {
@@ -32,19 +32,12 @@ export default function WalletSelectorModal() {
     }
   }
 
-  const getWalletIcon = (walletName: WalletType) => {
-    const wallet = availableWallets.find((w) => w.name === walletName)
-    return wallet?.icon || "🔗"
-  }
-
-  const getWalletDescription = (walletName: WalletType) => {
+  const getWalletDescription = (walletName: string) => {
     switch (walletName) {
       case "MetaMask":
         return "Most popular Ethereum wallet with browser extension"
-      case "Coinbase":
+      case "Coinbase Wallet":
         return "User-friendly wallet by Coinbase exchange"
-      case "Phantom":
-        return "Multi-chain wallet supporting Ethereum and Solana"
       case "WalletConnect":
         return "Connect with 300+ wallets via QR code"
       default:
@@ -64,10 +57,10 @@ export default function WalletSelectorModal() {
         </DialogHeader>
 
         <div className="space-y-4">
-          {connectionError && (
+          {error && (
             <Alert className="bg-red-50 border-red-200">
               <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">{connectionError}</AlertDescription>
+              <AlertDescription className="text-red-800">{error}</AlertDescription>
             </Alert>
           )}
 
@@ -77,10 +70,10 @@ export default function WalletSelectorModal() {
               <h4 className="text-sm font-medium text-gray-900">Detected Wallets</h4>
               {detectedWallets.map((wallet) => (
                 <Button
-                  key={wallet.name}
+                  key={wallet.key}
                   variant="outline"
                   className="w-full h-auto p-4 justify-start hover:bg-blue-50 hover:border-blue-200"
-                  onClick={() => handleWalletSelect(wallet.name)}
+                  onClick={() => handleWalletSelect(wallet.key)}
                   disabled={isConnecting || !wallet.isInstalled}
                 >
                   <div className="flex items-center space-x-3 w-full">
@@ -95,7 +88,7 @@ export default function WalletSelectorModal() {
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{getWalletDescription(wallet.name)}</p>
                     </div>
-                    {isConnecting && selectedWallet === wallet.name && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {isConnecting && selectedWallet === wallet.key && <Loader2 className="h-4 w-4 animate-spin" />}
                   </div>
                 </Button>
               ))}
@@ -110,7 +103,7 @@ export default function WalletSelectorModal() {
                 .filter((wallet) => !wallet.isInstalled)
                 .map((wallet) => (
                   <div
-                    key={wallet.name}
+                    key={wallet.key}
                     className="w-full p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center space-x-3 w-full">
@@ -149,7 +142,7 @@ export default function WalletSelectorModal() {
               <div className="space-y-2">
                 {availableWallets.slice(0, 3).map((wallet) => (
                   <Button
-                    key={wallet.name}
+                    key={wallet.key}
                     variant="outline"
                     size="sm"
                     onClick={() => window.open(wallet.downloadUrl, "_blank")}

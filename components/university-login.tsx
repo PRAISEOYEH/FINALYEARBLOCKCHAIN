@@ -37,20 +37,26 @@ import {
   Info,
 } from "lucide-react"
 import { useUniversityVoting } from "@/hooks/use-university-voting"
-import { useMultiWallet } from "@/hooks/use-multi-wallet"
+import WalletConnection from "@/components/wallet-connection"
+import { useAccount, useChainId } from "wagmi"
 
 type AuthMode = "signin" | "signup" | "verify"
 type UserType = "voter" | "candidate" | "admin"
 
+const BASE_SEPOLIA_CHAIN_ID = 84532
+
 export default function UniversityLogin() {
   const { login, signup, verifyEmail, resendVerification, isLoading, error, positions } = useUniversityVoting()
-  const { connectWallet, isConnected, account, disconnect } = useMultiWallet()
+  const { address, isConnected } = useAccount()
+  const chainId = useChainId()
 
   const [authMode, setAuthMode] = useState<AuthMode>("signin")
   const [userType, setUserType] = useState<UserType>("voter")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [verificationCodeSent, setVerificationCodeSent] = useState("")
+
+  const [walletError, setWalletError] = useState<string | null>(null)
 
   // Signin form state
   const [signinData, setSigninData] = useState({
@@ -90,6 +96,19 @@ export default function UniversityLogin() {
 
   const handleSignin = async (e: React.FormEvent) => {
     e.preventDefault()
+    setWalletError(null)
+
+    // Wallet connection & network validation before attempting traditional login
+    if (!isConnected || !address) {
+      setWalletError("Please connect your wallet to continue. Connect using the wallet panel above.")
+      return
+    }
+
+    if (!chainId || chainId !== BASE_SEPOLIA_CHAIN_ID) {
+      setWalletError(`Please switch your wallet to Base Sepolia (chain ${BASE_SEPOLIA_CHAIN_ID}) before signing in.`)
+      return
+    }
+
     try {
       const success = await login(signinData.email, signinData.password, signinData.accessCode)
       if (success) {
@@ -232,7 +251,7 @@ export default function UniversityLogin() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-3xl">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="bg-gradient-to-r from-purple-500 to-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -240,6 +259,38 @@ export default function UniversityLogin() {
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Tech University</h1>
           <p className="text-slate-300">Blockchain Voting System</p>
+        </div>
+
+        {/* Wallet Connection Panel - Prominent and responsive */}
+        <div className="mb-6">
+          <WalletConnection />
+        </div>
+
+        {/* Show a lightweight inline wallet/network status bar for quick visibility on the form */}
+        <div className="mb-4">
+          {!isConnected ? (
+            <Alert className="bg-yellow-50 border-yellow-200">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                Wallet not connected. Connect your wallet above to authenticate and perform blockchain actions.
+              </AlertDescription>
+            </Alert>
+          ) : chainId && chainId !== BASE_SEPOLIA_CHAIN_ID ? (
+            <Alert className="bg-yellow-50 border-yellow-200">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                Connected to <strong>Chain {chainId}</strong>. Please switch to <strong>Base Sepolia</strong> (chain{" "}
+                {BASE_SEPOLIA_CHAIN_ID}).
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                Wallet connected: <span className="font-medium">{address ? `${address}` : "Unknown address"}</span>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
@@ -276,6 +327,13 @@ export default function UniversityLogin() {
               <Alert className="bg-red-900/50 border-red-700">
                 <AlertTriangle className="h-4 w-4 text-red-400" />
                 <AlertDescription className="text-red-200">{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {walletError && (
+              <Alert className="bg-red-50 border-red-200">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">{walletError}</AlertDescription>
               </Alert>
             )}
 
@@ -775,9 +833,7 @@ export default function UniversityLogin() {
                   ) : (
                     <>
                       {getUserTypeIcon(userType)}
-                      <span className="ml-2">
-                        Create {userType.charAt(0).toUpperCase() + userType.slice(1)} Account
-                      </span>
+                      <span className="ml-2">Create {userType.charAt(0).toUpperCase() + userType.slice(1)} Account</span>
                     </>
                   )}
                 </Button>
@@ -908,9 +964,7 @@ export default function UniversityLogin() {
                   <p>
                     <strong>Admin:</strong> admin@techuni.edu / admin2024! / ADM-7892-XYZ
                   </p>
-                  <p className="text-slate-500 italic">
-                    Note: No student or candidate accounts exist yet. Create them through signup.
-                  </p>
+                  <p className="text-slate-500 italic">Note: No student or candidate accounts exist yet. Create them through signup.</p>
                 </div>
               </div>
             )}
